@@ -82,7 +82,7 @@ body {
 .stat span { font-size: 0.7rem; color: #88ccff; display: block; }
 .stat b { font-size: 1.5rem; font-family: monospace; }
 
-/*MODAL (NUEVO) - Reubicado a inferior derecha */
+
 .modal {
   position: absolute; /* Cambiado de fixed a absolute para ser parte del UI layer si es necesario, o fixed relative a viewport */
   bottom: 20px; 
@@ -92,7 +92,7 @@ body {
   width: auto; 
   height: auto;
   background-color: transparent; /* Sin fondo oscuro */
-  display: block; /* Mostrar siempre o controlado por visibilidad */
+  display: block; 
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s;

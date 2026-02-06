@@ -35,7 +35,9 @@ window.onerror = function(msg, url, line, col, error) {
 };
 </script>
 
-<script src="data.js"></script>
+<!-- <script src="data.js"></script> Eliminado para independencia total -->
+<script src="engine.js"></script>
+<script src="game.js"></script>
 <style>
     /* Inlined Panel Styles for Robustness */
     .analysis-panel {
@@ -76,7 +78,7 @@ window.onerror = function(msg, url, line, col, error) {
 <div id="ui-layer">
 
 <header class="hud-header">
-  <div class="hud-title">🏥 SIMULACION HOSPITALARIA</div>
+  <div class="hud-title">SIMULACION HOSPITALARIA</div>
   <div id="timer" class="hud-timer">00:00</div>
 </header>
 
@@ -84,7 +86,7 @@ window.onerror = function(msg, url, line, col, error) {
   <button id="btn-current" class="btn danger">Escenario Actual</button>
   <button id="btn-optimized" class="btn info">Solucion 1</button>
   <button id="btn-fast_track" class="btn info">Solucion 2</button>
-  <button id="btn-smoothing" class="btn info">Solucion 3</button>
+  <button id="btn-on_demand" class="btn info">Solucion 3</button>
   <button id="btn-stats" class="btn info">Ver Estadísticas</button>
 </div>
 
@@ -117,11 +119,57 @@ window.onerror = function(msg, url, line, col, error) {
     </div>
 </div>
 
+<!-- Controls (New) -->
+<div class="controls-container" style="position: absolute; bottom: 80px; left: 20px; z-index: 100; color: white; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 10px;">
+    <div style="margin-bottom: 10px;">
+        <label for="speed-slider">Velocidad: <span id="speed-val">30</span>x</label><br>
+        <input type="range" id="speed-slider" min="1" max="200" value="30" style="width: 200px;">
+    </div>
+    <div>
+        <label for="time-slider">Tiempo: <span id="time-val">00:00</span></label><br>
+        <input type="range" id="time-slider" min="0" max="1440" value="0" step="1" style="width: 200px;">
+    </div>
+</div>
+
+<!-- Config Panel (New) -->
+<button id="btn-config" onclick="document.getElementById('config-panel').classList.add('visible')" style="position: absolute; top: 20px; left: 20px; z-index: 9999; padding: 10px; background: #34495e; color: white; border: none; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); font-weight: bold;">
+    Configurar
+</button>
+
+<div id="config-panel" class="modal hidden" style="z-index: 200;">
+    <div class="modal-content glass" style="width: 400px; text-align: left;">
+        <h3>Configuración de Simulación</h3>
+        
+        <label>Distribución de Llegadas:</label>
+        <select id="cfg-distribution" style="width: 100%; margin-bottom: 10px; padding: 5px;">
+            <option value="exponential">Exponencial (Realista)</option>
+            <option value="uniform">Uniforme (Experimental)</option>
+        </select>
+
+        <label>Pacientes por Día (Volumen):</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="range" id="cfg-volume" min="20" max="150" value="50" style="flex: 1;">
+            <span id="val-volume">50</span>
+        </div>
+
+        <label>Médicos Disponibles:</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="range" id="cfg-doctors" min="1" max="10" value="4" style="flex: 1;">
+            <span id="val-doctors">4</span>
+        </div>
+
+        <div style="margin-top: 20px; text-align: right;">
+            <button id="btn-cancel-config" style="padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+            <button id="btn-apply-config" style="padding: 8px 15px; background: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer;">Simular</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Dashboard -->
 <div id="stats-modal" class="modal hidden">
     <div class="modal-content glass">
         <span id="close-modal" class="close">&times;</span>
-        <h2>📊 Dashboard de Operaciones</h2>
+        <h2>Dashboard de Operaciones</h2>
         <div class="metrics-grid">
             <div class="metric-card">
                 <h3>Pacientes Totales</h3>

@@ -1,8 +1,7 @@
-# Datos Masivos (Excluidos de GitHub)
-*.csv
+# Datos Masivos (Excluidos de GitHub - Ahorro de Cuota LFS)
 2020/
 2021/
 2022/
 2023/
-2024/
-data/
+# 2024/  <-- Permitido para LFS
+# data/  <-- Permitido para LFS

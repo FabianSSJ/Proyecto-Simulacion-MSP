@@ -1,54 +1,41 @@
 # Análisis de Problemática y Soluciones - Simulación Hospitalaria
 
-## 1. Problemática Identificada: Saturación de Médicos
+## 1. Problemática Identificada: Saturación de Médicos ("Current")
 
-El sistema actual ("Current") presenta un cuello de botella crítico en la disponibilidad de médicos para atender a la demanda de pacientes.
-
-**Diagnóstico (Basado en `generate_data.js` y `game.js`):**
-
-- **Demanda Continua:** Los pacientes llegan constantemente y requieren atención.
-- **Cuello de Botella en Consulta:** Existe un retraso significativo (simulado) entre la llegada a la sala de espera y el inicio de la atención médica.
-  - En el escenario estándar, los pacientes sufren largos tiempos de espera antes de ser atendidos por uno de los **4 médicos disponibles**.
-  - Esto genera una acumulación masiva de pacientes en la sala de espera principal.
-
-**Impacto Visual:**
-
-- Aglomeración visible en la zona de espera central.
-- Doctores ocupados el 100% del tiempo.
-- Indicador de "Carga por Doctor" elevado.
+El sistema actual presenta un cuello de botella crítico. Con una demanda constante de ~50 pacientes/día y tiempos de atención variables, 4 médicos no son suficientes para mantener el flujo durante picos, generando esperas.
 
 ---
 
-## 2. Soluciones Propuestas e Implementadas
+## 2. Validación de Soluciones Existentes
 
-### Solución 1: Optimización de Recursos (Escenario "Optimized")
+### ✅ Solución 1: Optimización de Recursos (Escenario "Optimized")
 
-**Estrategia:** Aumento de Capacidad Médica y Eficiencia.
+**Estrategia:** Aumento de Personal + Eficiencia Operativa.
 
-- **Implementación Técnica:**
-  - **Más Médicos:** Se activan **2 médicos extra** (Total: 6 médicos visibles en `game.js`).
-  - **Mayor Velocidad:** Se reduce el tiempo de atención en un **30%** (`speedFactor = 0.7` en `generate_data.js`).
-- **Resultado:** La cola de espera se procesa mucho más rápido, reduciendo drásticamente la estancia promedio.
+- **Factibilidad:** Media-Alta. Requiere presupuesto para nómina fija.
 
-### Solución 2: Fast Track (Escenario "Fast Track")
+### ✅ Solución 2: Fast Track / Vía Rápida (Escenario "Fast Track")
 
-**Estrategia:** Triaje Diferenciado / Vía Rápida.
+**Estrategia:** Triaje Diferenciado.
 
-- **Implementación Técnica:**
-  - Se habilita una zona exclusiva "Fast Track" (color cyan).
-  - El **30%** de los pacientes son desviados automáticamente a esta zona (`Math.random() < 0.3`).
-  - Estos pacientes son atendidos rápidamente y salen del sistema sin ocupar a los médicos generales.
-- **Resultado:** Descompresión de la sala de espera principal al reducir la demanda sobre los 4 médicos estándar.
-
-### Solución 3: Hospital Gemelo / Suavizamiento (Escenario "Smoothing")
-
-**Estrategia:** Balanceo de Carga (Load Balancing).
-
-- **Implementación Técnica:**
-  - Se habilita un "Hospital B" completo (espejo del Hospital A).
-  - La demanda de pacientes se distribuye **50/50** entre el Hospital A y el Hospital B.
-- **Resultado:** La carga de trabajo se divide exactamente a la mitad. Con la misma cantidad de médicos por hospital (4), pero con la mitad de pacientes llegando a cada uno, el sistema opera con holgura y sin saturación.
+- **Factibilidad:** Muy Alta. Costo Cero, solo reorganización.
 
 ---
 
-_Este análisis refleja la lógica actual implementada en JavaScript, donde la restricción principal es la capacidad de atención médica._
+## 3. Estrategia Seleccionada (Costo Cero)
+
+### ✅ Solución 3: Apoyo de Pasantes / Internos (Escenario "Interns")
+
+**Estrategia:** Uso de Personal en Formación (Recurso Disponible).
+
+- **Concepto:** Aprovechar la presencia de estudiantes de medicina (Pasantes) que ya están en el hospital por convenio universitario.
+- **Implementación Técnica ("Interns On-Demand"):**
+  - **Recurso Base:** 4 Médicos Titulares (Costantes).
+  - **Recurso Flexible:** 2 Pasantes.
+  - **Comportamiento:** Los pasantes permanecen en áreas de estudio/descanso. Cuando la sala de espera supera un umbral crítico (5 pacientes), son llamados a cubrir consultorios vacíos o habilitar consultorios de apoyo temporalmente.
+- **Justificación Económica:** **Costo Adicional Cero.** Los pasantes requieren horas de práctica como parte de su formación. El hospital gana mano de obra para picos de saturación sin aumentar la nómina.
+- **Viabilidad Operativa:** Alta. Es un modelo común en hospitales universitarios o públicos.
+
+---
+
+_Esta estrategia maximiza la capacidad de atención sin impactar el presupuesto operativo._

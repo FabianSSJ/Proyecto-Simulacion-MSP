@@ -4,23 +4,23 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 /* ================= CONFIGURACIÓN ================= */
 const ANALYSIS_TEXTS = {
     'current': {
-        title: "⚠️ Problemática Detectada",
-        text: "<strong>Saturación de Médicos:</strong><br>La demanda continua supera la capacidad de los 4 médicos disponibles. Se genera un cuello de botella crítico en la fase de consulta, provocando colas exponenciales y tiempos de espera inaceptables.",
+        title: "Problemática Detectada",
+        text: "<strong>Saturación de Médicos:</strong><br>La demanda continua supera la capacidad de los 4 médicos disponibles. Se genera un cuello de botella crítico en la fase de consulta, provocando colas exponenciales y tiempos de espera inaceptables.<br><br><strong>Costo Operativo:</strong> Base (Nómina Estándar)",
         type: "problem"
     },
     'optimized': {
-        title: "✅ Solución 1: Optimización",
-        text: "<strong>Estrategia: +Capacidad +Eficiencia</strong><br>Se habilitan <strong>6 médicos</strong> (2 extra) y se reduce el tiempo de atención en un 30%.<br><em>Resultado:</em> El sistema procesa pacientes más rápido que la tasa de llegada, eliminando las colas.",
+        title: "Solución 1: Optimización",
+        text: "<strong>Estrategia: +Capacidad +Eficiencia</strong><br>Se habilitan <strong>6 médicos</strong> (2 extra) y se reduce el tiempo de atención en un 30%.<br><em>Resultado:</em> El sistema procesa pacientes más rápido que la tasa de llegada, eliminando las colas.<br><br><strong>Costo Operativo:</strong> Alto (2 Médicos Adicionales)",
         type: "solution"
     },
     'fast_track': {
-        title: "✅ Solución 2: Fast Track",
-        text: "<strong>Estrategia: Triaje Diferenciado</strong><br>El <strong>30%</strong> de los pacientes (casos leves) se desvían a una vía rápida exclusiva (Cyan).<br><em>Resultado:</em> Descompresión de la sala de espera principal y mejor flujo general.",
+        title: "Solución 2: Fast Track",
+        text: "<strong>Estrategia: Triaje Diferenciado</strong><br>El <strong>30%</strong> de los pacientes (casos leves) se desvían a una vía rápida exclusiva.<br><em>Resultado:</em> Descompresión de la sala de espera principal y mejor flujo general.<br><br><strong>Costo Operativo:</strong> Bajo (Reorganización Interna)",
         type: "solution"
     },
-    'smoothing': {
-        title: "✅ Solución 3: Hospital Gemelo",
-        text: "<strong>Estrategia: Balanceo de Carga</strong><br>Se habilita un segundo hospital idéntico y la demanda se divide <strong>50/50</strong>.<br><em>Resultado:</em> Cada hospital maneja la mitad de carga, operando en zona segura de sub-saturación.",
+    'on_demand': {
+        title: "Solución 3: Apoyo de Pasantes",
+        text: "<strong>Estrategia: Costo Cero</strong><br>Se utiliza personal en formación (Pasantes) como recurso flexible.<br>Si la cola supera los 5 pacientes, los <strong>2 Pasantes</strong> entran en acción para apoyar en consultorios adicionales.<br><br><strong>Costo Adicional:</strong> $0",
         type: "solution"
     }
 };
@@ -34,7 +34,8 @@ const COLORS = {
     doctor: 0xecf0f1,
     skin: 0xffccaa,
     nurse: 0x9b59b6,
-    fast_track: 0x008080, // Color cyan oscuro
+    intern: 0x2ecc71,
+    fast_track: 0x008080,
     wall: 0x95a5a6
 };
 
@@ -79,8 +80,9 @@ let simTime = 0;
 let eventIndex = 0;
 let activeTrace = [];
 let isRunning = false;
-let timeSpeed = 5;
+let timeSpeed = 30;
 let maxSimTime = 0; 
+let internActiveUntil = 0; // Cooldown for interns
 const clock = new THREE.Clock();
 
 const stats = { total: 0, triage: 0, doctor: 0, finished: 0, totalStay: 0 };
@@ -121,19 +123,149 @@ function init() {
     // Eventos de botones
     setupButtons();
 
+    // --- DATASETS INDEPENDENT ---
+    // Si no existe SIM_DATA (porque borramos data.js), lo creamos al vuelo.
+    if (!window.SIM_DATA) {
+        window.SIM_DATA = {};
+        console.log("Generando escenarios dinámicamente...");
+        const scenarios = ['current', 'optimized', 'fast_track', 'on_demand'];
+        scenarios.forEach(id => {
+            console.log(`Generando escenario: ${id}...`);
+            window.SIM_DATA[id] = SimulationEngine.generateTrace(id);
+        });
+        console.log("Generación completa.");
+    }
+
     // Cargar escenario por defecto
     setTimeout(() => loadScenario('current'), 500);
 }
 
 function setupButtons() {
-    const scenarios = ['current', 'optimized', 'fast_track', 'smoothing'];
+    const scenarios = ['current', 'optimized', 'fast_track', 'on_demand'];
     
     scenarios.forEach(id => {
         const btn = document.getElementById(`btn-${id}`);
         if(btn) {
             btn.onclick = () => loadScenario(id);
         }
-    });
+        });
+    
+    setupSliders();
+    setupConfigPanel();
+}
+
+function setupConfigPanel() {
+    console.log("Inicializando Panel de Configuración...");
+    const btnConfig = document.getElementById('btn-config');
+    const panel = document.getElementById('config-panel');
+    
+    if(!btnConfig) console.error("Error: btn-config no encontrado");
+    if(!panel) console.error("Error: config-panel no encontrado");
+
+    const btnCancel = document.getElementById('btn-cancel-config');
+    const btnApply = document.getElementById('btn-apply-config');
+    
+    // Open/Close
+    btnConfig.onclick = () => panel.classList.add('visible');
+    btnCancel.onclick = () => panel.classList.remove('visible');
+
+    // Live Value Updates
+    document.getElementById('cfg-volume').oninput = (e) => document.getElementById('val-volume').innerText = e.target.value;
+    document.getElementById('cfg-doctors').oninput = (e) => document.getElementById('val-doctors').innerText = e.target.value;
+
+    // Apply Logic
+    btnApply.onclick = () => {
+        const distribution = document.getElementById('cfg-distribution').value;
+        const volume = parseInt(document.getElementById('cfg-volume').value);
+        const doctors = parseInt(document.getElementById('cfg-doctors').value);
+
+        // Generate Data
+        // Dynamic Duration: Slightly extend duration if volume is high to allow processing
+        // Formula: Base 24h + 6h if very high volume strategies need cooldown
+        // User complained about "overflow" with 48h. Let's be conservative.
+        // Cap at 30h max.
+        let hours = 24;
+        if (volume > 100) hours = 30;
+        
+        const params = {
+            patientsPerHour: volume / 24, // Keep rate consistent with "Patients Per Day" perception
+            distribution: distribution,
+            hours: hours
+        };
+        
+        console.log("Generating trace with:", params);
+        const newTrace = SimulationEngine.generateTrace('current', params);
+        
+        // Store in global data
+        window.SIM_DATA['custom'] = newTrace;
+        
+        // Inject dynamic text to Analysis
+        ANALYSIS_TEXTS['custom'] = {
+            title: "Escenario Personalizado",
+            text: `<strong>Configuración Manual:</strong><br>Distribución: ${distribution}<br>Pacientes/Día: ${volume}<br>Médicos: ${doctors}<br><br><strong>Simulación Dinámica Generada</strong>`,
+            type: "solution"
+        };
+        
+        // HACK: Update doc counts for 'custom' mode in the engine/game logic
+        // We need to support 'custom' in loadScenario
+        DOC_COUNTS['custom'] = doctors;
+        
+        // Load
+        loadScenario('custom');
+        panel.classList.remove('visible');
+        
+        // Visual indicator on config button?
+        btnConfig.style.background = "#e67e22"; // Orange to indicate custom active
+    };
+}
+
+function setupSliders() {
+    const speedSlider = document.getElementById('speed-slider');
+    const timeSlider = document.getElementById('time-slider');
+    
+    speedSlider.oninput = (e) => {
+        timeSpeed = parseInt(e.target.value);
+        document.getElementById('speed-val').innerText = timeSpeed;
+    };
+
+    timeSlider.oninput = (e) => {
+        const targetTime = parseInt(e.target.value);
+        
+        // If seeking backwards, we must reset
+        if (targetTime < simTime) {
+            resetSimulationState(); // Soft reset (keeps trace)
+        }
+        
+        // Update simTime. The processEvents loop will catch up automatically
+        // because it runs while(eventIndex < ... && event.time <= simTime)
+        simTime = targetTime;
+        
+        // Update UI Text immediately
+        const h = Math.floor(simTime / 60);
+        const m = Math.floor(simTime % 60);
+        document.getElementById('time-val').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    };
+}
+
+function resetSimulationState() {
+     // Clean Visuals
+     Object.values(patients).forEach(p => scene.remove(p.mesh));
+     patients = {};
+     
+     // Reset Counters
+     simTime = 0;
+     eventIndex = 0;
+     stats.total = 0; stats.triage = 0; stats.doctor = 0; stats.finished = 0; stats.totalStay = 0;
+     
+     // Reset Staff Visibility (Environment will re-apply on next tick or manually here)
+     // Actually, let's keep environment static as per current mode, just reset dynamic objects
+     // Reset Interns
+     extraDoctors.forEach(d => {
+         // Keep them hidden until logic triggers them
+         const mode = document.querySelector('.btn.active')?.id.replace('btn-', '');
+         if(mode === 'on_demand') d.visible = false; 
+     });
+     
 }
 
 /* ================= MUNDO 3D ================= */
@@ -159,13 +291,21 @@ function buildHospital() {
     createMesh(new THREE.BoxGeometry(15, 1, 10), COLORS.reception, LOCATIONS.reception.x, LOCATIONS.reception.z);
     createMesh(new THREE.BoxGeometry(25, 1, 25), COLORS.waiting, LOCATIONS.waiting_room.x, LOCATIONS.waiting_room.z);
     
-    // Doctores A (6 Cubiculos individuales)
+    // Doctores A (10 Cubiculos para soporte dinámico)
     LOCATIONS.doctor_cubicles = [];
-    for(let i=0; i<6; i++) {
+    for(let i=0; i<10; i++) {
+        // Grid 4x3 approx (or 3x4)
+        // 3 wide: 0,1,2 - 3,4,5 - 6,7,8 - 9
         const x = LOCATIONS.doctor_room.x + ((i%3)*10) - 10;
         const z = LOCATIONS.doctor_room.z + (Math.floor(i/3)*12) - 6;
-        createMesh(new THREE.BoxGeometry(8, 1, 10), COLORS.doctor, x, z);
-        LOCATIONS.doctor_cubicles.push({x, z});
+        const mesh = createMesh(new THREE.BoxGeometry(8, 1, 10), COLORS.doctor, x, z);
+        // Store mesh ref to toggle visibility if needed (though we usually toggle staff)
+        // Let's keep cubicles always visible or maybe hide extra ones?
+        // For now keep cubicles visible as "empty desks" if unused, or manageable.
+        // Actually, let's store them to hide if unused in 'custom'.
+        mesh.userData.isCubicle = true;
+        mesh.visible = (i < 6); // Default show 6 max initially
+        LOCATIONS.doctor_cubicles.push({x, z, mesh});
     }
     
     // Fast Track Room (Guardar referencia)
@@ -182,23 +322,20 @@ function buildHospital() {
     // --- STAFF INICIAL A ---
     // Recepcionista
     staff.push(createStaff(LOCATIONS.reception.x, LOCATIONS.reception.z, COLORS.nurse));
-    // Doctores (4 Iniciales - asignados a los primeros 4 cubiculos)
-    for(let i=0; i<4; i++) {
+    
+    // Create 10 Doctors (Pool)
+    for(let i=0; i<10; i++) {
         const cubicle = LOCATIONS.doctor_cubicles[i];
-        staff.push(createStaff(cubicle.x, cubicle.z, COLORS.doctor));
+        const color = (i >= 4) ? COLORS.intern : COLORS.doctor; // 4 main doctors, rest interns/extra
+        const d = createStaff(cubicle.x, cubicle.z, color);
+        d.userData.doctorId = i; // Track ID
+        staff.push(d);
+        // Store ref in cubicle or separate list
+        // We put them in staff list, but we need to manage visibility
     }
-    // Doctores Extra (Ocultos inicialmente - asignados a los ultimos 2 cubiculos)
-    for(let i=0; i<2; i++) {
-        const cubicle = LOCATIONS.doctor_cubicles[4+i];
-        const d = createStaff(cubicle.x, cubicle.z, COLORS.doctor);
-        d.visible = false;
-        extraDoctors.push(d);
-    }
-    // Fast Track Staff (Oculto)
-    const ftStaff = createStaff(LOCATIONS.fast_track.x, LOCATIONS.fast_track.z, COLORS.doctor);
-    ftStaff.visible = false;
-    staff.push(ftStaff); 
-    fastTrackRoom.userData.staff = ftStaff;
+    
+    // Map extraDoctors for legacy logic (interns are index 4,5)
+    extraDoctors = staff.filter(s => s.userData.doctorId === 4 || s.userData.doctorId === 5);
 
 
     /* ================= HOSPITAL B (Sol 3) ================= */
@@ -313,45 +450,108 @@ function movePatient(patient, location, spread = 0) {
 /* ================= SIMULACIÓN ================= */
 function loadScenario(mode) {
     if (!window.SIM_DATA || !window.SIM_DATA[mode]) {
-        alert("Error: Datos no encontrados para el escenario: " + mode + ". Revisa data.js");
+        // Fallback or Error
+        console.error("Error crítico: Datos no encontrados para " + mode);
         return;
     }
 
     // Limpiar
-    Object.values(patients).forEach(p => scene.remove(p.mesh));
-    patients = {};
+
     activeTrace = window.SIM_DATA[mode];
-    simTime = 0;
-    eventIndex = 0;
+    resetSimulationState();
     
-    // Reset stats
-    stats.total = 0; stats.triage = 0; stats.doctor = 0; stats.finished = 0; stats.totalStay = 0;
+    // UI Active State
 
     // UI Active State
     document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-    const btn = document.getElementById(`btn-${mode}`);
-    if(btn) btn.classList.add('active');
+    
+    if (mode === 'custom') {
+         // No specific button for custom in the main bar, maybe highlight config?
+         document.getElementById('btn-config').classList.add('active'); // custom style
+    } else {
+        document.getElementById('btn-config').classList.remove('active');
+        document.getElementById('btn-config').style.background = "#34495e"; // reset color
+        const btn = document.getElementById(`btn-${mode}`);
+        if(btn) btn.classList.add('active');
+    }
 
     // Calcular tiempo máximo para detener el timer
     maxSimTime = Math.max(...activeTrace.map(e => e.time));
+    
+    // Update Slider Max Range dynamically!
+    // Round up to nearest hour or just use maxSimTime
+    const maxMins = Math.ceil(maxSimTime);
+    const slider = document.getElementById('time-slider');
+    if(slider) {
+        slider.max = maxMins > 1440 ? maxMins + 60 : 1440; // Maintain at least 24h
+        slider.value = 0;
+        document.getElementById('time-val').innerText = "00:00";
+    }
     
     // Reset Visuals Logic based on Mode
     updateEnvironment(mode);
     updateAnalysisPanel(mode);
 
     isRunning = true;
-    updateDashboardRealTime(); // Reset dashboard numbers
+    updateDashboardRealTime(); // Function to update environment visibility
 }
 
 function updateEnvironment(mode) {
     // 1. Reset visibilities
     if(fastTrackRoom) {
         fastTrackRoom.visible = false;
+        fastTrackLabel.visible = false;
         if(fastTrackRoom.userData.staff) fastTrackRoom.userData.staff.visible = false;
-        if(fastTrackLabel) fastTrackLabel.visible = false;
     }
+
+    if (mode === 'custom') {
+        const count = DOC_COUNTS['custom'] || 4;
+        // Manage 10 doctors pool
+        staff.forEach(s => {
+            if (s.userData.doctorId !== undefined) {
+                // It is a doctor
+                const id = s.userData.doctorId;
+                s.visible = (id < count);
+                // Also toggle cubicle mesh
+                if (LOCATIONS.doctor_cubicles[id] && LOCATIONS.doctor_cubicles[id].mesh) {
+                    LOCATIONS.doctor_cubicles[id].mesh.visible = (id < count);
+                }
+            }
+        });
+    } else {
+        // Legacy Modes
+        // Show default 4 or 6 based on optimized
+        // Reset 10 pool to standard behavior
+        
+        staff.forEach(s => {
+            if (s.userData.doctorId !== undefined) {
+                const id = s.userData.doctorId;
+                if (id < 4) {
+                    s.visible = true; // Always show first 4
+                    if (LOCATIONS.doctor_cubicles[id].mesh) LOCATIONS.doctor_cubicles[id].mesh.visible = true;
+                } else if (id === 4 || id === 5) {
+                    // Interns
+                    if (mode === 'optimized') {
+                        s.visible = true;
+                        if (LOCATIONS.doctor_cubicles[id].mesh) LOCATIONS.doctor_cubicles[id].mesh.visible = true;
+                    } else if (mode === 'on_demand') {
+                        s.visible = false; // Hidden initially, triggered by logic
+                        if (LOCATIONS.doctor_cubicles[id].mesh) LOCATIONS.doctor_cubicles[id].mesh.visible = true; // Cubicles visible (ready for interns)
+                    } else {
+                        s.visible = false;
+                        if (LOCATIONS.doctor_cubicles[id].mesh) LOCATIONS.doctor_cubicles[id].mesh.visible = false;
+                    }
+                } else {
+                    // 6+ (Rest of the 10 - STRICTLY HIDDEN FOR STANDARD MODES)
+                    s.visible = false;
+                    if (LOCATIONS.doctor_cubicles[id].mesh) LOCATIONS.doctor_cubicles[id].mesh.visible = false;
+                }
+            }
+        });
+    }
+
+    // Hospital B visibility
     hospitalBMeshes.forEach(m => m.visible = false);
-    extraDoctors.forEach(d => d.visible = false);
 
     // 2. Enable specific Scenario features
     if (mode === 'fast_track') { // Solucion 2
@@ -361,11 +561,11 @@ function updateEnvironment(mode) {
             if(fastTrackLabel) fastTrackLabel.visible = true;
         }
     } else if (mode === 'optimized') { // Solucion 1
-        extraDoctors.forEach(d => d.visible = true);
-    } else if (mode === 'smoothing') { // Solucion 3 - Twin Hospital
-         hospitalBMeshes.forEach(m => m.visible = true);
-         // Tambien activamos los doctores extra del hospital A para que ambos tengan 6
-         extraDoctors.forEach(d => d.visible = true);
+        // extraDoctors.forEach(d => d.visible = true); // Handled by the new staff loop
+    } else if (mode === 'on_demand') { // Solucion 3 - Dynamic Staffing
+         // hospitalBMeshes.forEach(m => m.visible = false); // Ensure B is hidden - already done
+         // Visibility of extra doctors handled in processEvents dynamically
+         // extraDoctors.forEach(d => d.visible = false); // Handled by the new staff loop
     }
 }
 
@@ -474,7 +674,16 @@ function processEvents(dt) {
                         movePatient(p, LOCATIONS.triage_room, 2);
                         stats.triage = Math.max(0, stats.triage - 1);
                     } else if (ev.loc === 'doctor') {
-                        const cubicleIdx = Math.floor(Math.random() * (isRunning && document.getElementById('btn-optimized').classList.contains('active') ? 6 : 4));
+                        // Determinar cantidad de doctores disponibles
+                        const mode = document.querySelector('.btn.active')?.id.replace('btn-', '') || 'current';
+                        let maxDocs = 4;
+                        if (mode === 'optimized') maxDocs = 6;
+                        // Si es modo pasantes (on_demand) Y están activos (simTime < internActiveUntil), usar 6
+                        if (mode === 'on_demand' && typeof internActiveUntil !== 'undefined' && simTime < internActiveUntil) {
+                            maxDocs = 6;
+                        }
+
+                        const cubicleIdx = Math.floor(Math.random() * maxDocs);
                         const target = LOCATIONS.doctor_cubicles[cubicleIdx] || LOCATIONS.doctor_room;
                         movePatient(p, target, 2);
                         stats.doctor = Math.max(0, stats.doctor - 1);
@@ -502,16 +711,47 @@ function processEvents(dt) {
         }
         eventIndex++;
     }
+
+    // --- LOGICA ON-DEMAND (Solucion 3) ---
+    const mode = document.querySelector('.btn.active')?.id.replace('btn-', '') || 'current';
+    if (mode === 'on_demand') {
+        // Contar pacientes en espera (Queue Triage + Queue Waiting) en A
+        // Simplemente contamos los que tienen target en waiting zone? O mejor tracking de estado?
+        // Aproximacion visual:
+        let queueCount = 0;
+        Object.values(patients).forEach(p => {
+            // Check approximate location
+            const dx = p.mesh.position.x - LOCATIONS.waiting_room.x;
+            const dz = p.mesh.position.z - LOCATIONS.waiting_room.z;
+            if (Math.abs(dx) < 15 && Math.abs(dz) < 15) queueCount++;
+        });
+
+        // Threshold = 5
+        // Logic: If queue spikes, activate interns for at least X min (e.g. 120 sim minutes)
+        // Lower threshold to 2 because total volume is low (50/day), so queues of 5 are rare.
+        if (queueCount > 2) {
+            internActiveUntil = simTime + 120; // Stay for 2 hours (simulated)
+        }
+
+        if (simTime < internActiveUntil) {
+            extraDoctors.forEach(d => d.visible = true); 
+        } else {
+            extraDoctors.forEach(d => d.visible = false);
+        }
+    }
+
     updateUI();
 }
 
 function updateUI() {
     const h = Math.floor(simTime / 60);
     const m = Math.floor(simTime % 60);
-    document.getElementById('timer').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    document.getElementById('timer').innerText = timeStr;
+    document.getElementById('time-val').innerText = timeStr;
+    document.getElementById('time-slider').value = simTime;
     
     document.getElementById('stat-total').innerText = stats.total;
-    document.getElementById('stat-triage').innerText = stats.triage;
     document.getElementById('stat-doctor').innerText = stats.doctor;
     document.getElementById('stat-finished').innerText = stats.finished;
 
@@ -538,7 +778,7 @@ function updateDashboardRealTime() {
     // Resto: 4
     let docs = 4;
     if (mode === 'optimized') docs = 6;
-    if (mode === 'smoothing') docs = 12;
+    if (mode === 'on_demand') docs = 6; // Assume max capacity for load calc
     // Evitar division por cero o numeros raros al inicio
     const load = stats.total > 0 ? (stats.total / docs).toFixed(1) : "0.0";
     
@@ -558,8 +798,9 @@ function updateDashboardRealTime() {
 
     // 4. Estancia Promedio (Real)
     // Promedio = Tiempo Total Acumulado / Pacientes Finalizados
-    const avg = stats.finished > 0 ? (stats.totalStay / stats.finished).toFixed(0) : 0;
-    document.getElementById('dash-stay').innerText = `${avg} min`;
+    const avgMin = stats.finished > 0 ? (stats.totalStay / stats.finished) : 0;
+    const avgHours = (avgMin / 60).toFixed(1);
+    document.getElementById('dash-stay').innerText = `${avgHours} h`;
 }
 
 function animate() {
@@ -604,13 +845,21 @@ function onWindowResize() {
     camera.left = -d * aspect;
     camera.right = d * aspect;
     camera.top = d;
-    camera.bottom = -d;
+                    camera.bottom = -d;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 /* ================= ESTADÍSTICAS MODAL ================= */
-const DOC_COUNTS = { 'current': 4, 'optimized': 6, 'fast_track': 4, 'smoothing': 4 };
+
+// Configuración de Recursos Visuales
+const DOC_COUNTS = {
+    'current': 4,
+    'optimized': 6,
+    'fast_track': 4,
+    'on_demand': 6, // 4 + 2
+    'custom': 4 // Default, will be updated dynamically
+};
 
 function calculateMetrics(mode) {
     if (!window.SIM_DATA || !window.SIM_DATA[mode]) return;
@@ -644,8 +893,9 @@ function calculateMetrics(mode) {
             count++;
         }
     }
-    const avg = count ? (totalStay / count).toFixed(0) : 0;
-    document.getElementById('dash-stay').innerText = `${avg} min`;
+    const avgMin = count ? (totalStay / count) : 0;
+    const avgHours = (avgMin / 60).toFixed(1);
+    document.getElementById('dash-stay').innerText = `${avgHours} h`;
 }
 
 // Lógica del Modal
