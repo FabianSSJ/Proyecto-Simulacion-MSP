@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador Hospitalario</title>
+<link rel="stylesheet" href="style.css">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+</script>
+
+<script>
+window.onerror = function(msg, url, line, col, error) {
+   const div = document.createElement("div");
+   div.style.position = "fixed";
+   div.style.top = "0";
+   div.style.left = "0";
+   div.style.width = "100%";
+   div.style.background = "red";
+   div.style.color = "white";
+   div.style.zIndex = "9999";
+   div.style.padding = "20px";
+   div.style.fontFamily = "monospace";
+   div.innerHTML = "<h3>Error detected:</h3>" + msg + "<br>" + url + ":" + line + ":" + col;
+   document.body.appendChild(div);
+   return false;
+};
+</script>
+
+<script src="data.js"></script>
+<style>
+    /* Inlined Panel Styles for Robustness */
+    .analysis-panel {
+        position: absolute;
+        top: 100px;
+        left: 20px;
+        width: 300px;
+        background: rgba(15, 23, 42, 0.9);
+        padding: 20px;
+        border-radius: 15px;
+        border-left: 5px solid #ff4444; 
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        color: white !important;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        z-index: 100;
+        min-height: 100px;
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+    .analysis-panel h2 {
+        margin: 0 0 10px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+        padding-bottom: 5px;
+        font-size: 16px;
+        color: #ff4444;
+    }
+    .analysis-panel.solution { border-left-color: #00ccff; }
+    .analysis-panel.solution h2 { color: #00ccff; }
+    .analysis-panel p { margin: 0 0 10px 0; color: #eee; }
+    .analysis-panel strong { color: #fff; font-weight: bold; }
+</style>
+</head>
+
+<body>
+<div id="ui-layer">
+
+<header class="hud-header">
+  <div class="hud-title">🏥 SIMULACION HOSPITALARIA</div>
+  <div id="timer" class="hud-timer">00:00</div>
+</header>
+
+<div class="hud-buttons">
+  <button id="btn-current" class="btn danger">Escenario Actual</button>
+  <button id="btn-optimized" class="btn info">Solucion 1</button>
+  <button id="btn-fast_track" class="btn info">Solucion 2</button>
+  <button id="btn-smoothing" class="btn info">Solucion 3</button>
+  <button id="btn-stats" class="btn info">Ver Estadísticas</button>
+</div>
+
+<div class="hud-stats">
+  <div class="stat">
+    <span>PACIENTES</span>
+    <b id="stat-total">0</b>
+  </div>
+  <div class="stat">
+    <span>COLA TRIAGE</span>
+    <b id="stat-triage">0</b>
+  </div>
+  <div class="stat">
+    <span>COLA DOCTOR</span>
+    <b id="stat-doctor">0</b>
+  </div>
+  <div class="stat">
+    <span>FINALIZADOS</span>
+    <b id="stat-finished">0</b>
+  </div>
+</div>
+
+</div>
+
+<!-- Analysis Panel (Left Side) -->
+<div id="analysis-panel" class="analysis-panel">
+    <h2 id="analysis-title">Problemática Detectada</h2>
+    <div id="analysis-content">
+        <p>Cargando análisis...</p>
+    </div>
+</div>
+
+<!-- Modal Dashboard -->
+<div id="stats-modal" class="modal hidden">
+    <div class="modal-content glass">
+        <span id="close-modal" class="close">&times;</span>
+        <h2>📊 Dashboard de Operaciones</h2>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <h3>Pacientes Totales</h3>
+                <p id="dash-total">0</p>
+                <small>Procesados en el turno</small>
+            </div>
+            <div class="metric-card">
+                <h3>Tiempo Operación</h3>
+                <p id="dash-time">00:00</p>
+                <small>Duración de la simulación</small>
+            </div>
+            <div class="metric-card">
+                <h3>Carga por Doctor</h3>
+                <p id="dash-load">0</p>
+                <small>Pacientes / Médico</small>
+            </div>
+            <div class="metric-card">
+                <h3>Estancia Promedio</h3>
+                <p id="dash-stay">0 min</p>
+                <small>Desde llegada a salida</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="game-container"></div>
+<script type="module" src="game.js"></script>
+</body>
+</html>
