@@ -14,19 +14,4 @@ Este proyecto implementa una **Simulación Visual en HTML5** para analizar y com
 
 ### 1. Ver la Simulación
 
-Simplemente navega a la carpeta `web` y abre el archivo `index.html` en tu navegador web de preferencia (Chrome, Edge, Firefox).
-
-### 2. Regenerar Datos (Opcional)
-
-Si deseas modificar los parámetros de la simulación (ej. número de médicos, duración), edita el archivo `src/generate_scenarios.py` y ejecútalo:
-
-```bash
-python src/generate_scenarios.py
-```
-
-Esto actualizará automáticamente el archivo `web/data.js` con los nuevos resultados.
-
-## Requisitos (Solo para generar datos)
-
-- Python 3.x
-- SimPy (`pip install simpy`)
+Simplemente entra a la carpeta `web` y abre el archivo `index.html` en tu navegador web de preferencia (Chrome, Edge, Firefox, Brave, Opera).
